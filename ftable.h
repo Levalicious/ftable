@@ -11,6 +11,19 @@
 #ifdef __x86
 typedef uint32_t uin;
 
+/* Table of bitmasks to use */
+const uin mask[] = {
+        0x7,                0xF,
+        0x1F,               0x3F,               0x7F,               0xFF,
+        0x1FF,              0x3FF,              0x7FF,              0xFFF,
+        0x1FFF,             0x3FFF,             0x7FFF,             0xFFFF,
+        0x1FFFF,            0x3FFFF,            0x7FFFF,            0xFFFFF,
+        0x1FFFFF,           0x3FFFFF,           0x7FFFFF,           0xFFFFFF,
+        0x1FFFFFF,          0x3FFFFFF,          0x7FFFFFF,          0xFFFFFFF,
+        0x1FFFFFFF,         0x3FFFFFFF,         0x7FFFFFFF,         0xFFFFFFFF,
+};
+
+
 /* Table of prime number sizes, each approx double the prev, that fits
  * into a uint32_t */
 const uin tableSizes[] = {
@@ -23,6 +36,27 @@ const uin tableSizes[] = {
 
 #elif __x86_64
 typedef uint64_t uin;
+
+/* Table of bitmasks to use */
+const uin mask[] = {
+        0x7,                0xF,
+        0x1F,               0x3F,               0x7F,               0xFF,
+        0x1FF,              0x3FF,              0x7FF,              0xFFF,
+        0x1FFF,             0x3FFF,             0x7FFF,             0xFFFF,
+        0x1FFFF,            0x3FFFF,            0x7FFFF,            0xFFFFF,
+        0x1FFFFF,           0x3FFFFF,           0x7FFFFF,           0xFFFFFF,
+        0x1FFFFFF,          0x3FFFFFF,          0x7FFFFFF,          0xFFFFFFF,
+        0x1FFFFFFF,         0x3FFFFFFF,         0x7FFFFFFF,         0xFFFFFFFF,
+        0x1FFFFFFFF,        0x3FFFFFFFF,        0x7FFFFFFFF,        0xFFFFFFFFF,
+        0x1FFFFFFFFF,       0x3FFFFFFFFF,       0x7FFFFFFFFF,       0xFFFFFFFFFF,
+        0x1FFFFFFFFFF,      0x3FFFFFFFFFF,      0x7FFFFFFFFFF,      0xFFFFFFFFFFF,
+        0x1FFFFFFFFFFF,     0x3FFFFFFFFFFF,     0x7FFFFFFFFFFF,     0xFFFFFFFFFFFF,
+        0x1FFFFFFFFFFFF,    0x3FFFFFFFFFFFF,    0x7FFFFFFFFFFFF,    0xFFFFFFFFFFFFF,
+        0x1FFFFFFFFFFFFF,   0x3FFFFFFFFFFFFF,   0x7FFFFFFFFFFFFF,   0xFFFFFFFFFFFFFF,
+        0x1FFFFFFFFFFFFFF,  0x3FFFFFFFFFFFFFF,  0x7FFFFFFFFFFFFFF,  0xFFFFFFFFFFFFFFF,
+        0x1FFFFFFFFFFFFFFF, 0x3FFFFFFFFFFFFFFF, 0x7FFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF,
+
+};
 
 /* Table of prime number sizes, each approx double the prev, that fits
  * into a uint64_t */
@@ -48,27 +82,6 @@ const uin tableSizes[] = {
         18446744073709551557};
 
 #endif
-
-/* Table of bitmasks to use */
-const uin mask[] = {
-        0x7,                0xF,
-        0x1F,               0x3F,               0x7F,               0xFF,
-        0x1FF,              0x3FF,              0x7FF,              0xFFF,
-        0x1FFF,             0x3FFF,             0x7FFF,             0xFFFF,
-        0x1FFFF,            0x3FFFF,            0x7FFFF,            0xFFFFF,
-        0x1FFFFF,           0x3FFFFF,           0x7FFFFF,           0xFFFFFF,
-        0x1FFFFFF,          0x3FFFFFF,          0x7FFFFFF,          0xFFFFFFF,
-        0x1FFFFFFF,         0x3FFFFFFF,         0x7FFFFFFF,         0xFFFFFFFF,
-        0x1FFFFFFFF,        0x3FFFFFFFF,        0x7FFFFFFFF,        0xFFFFFFFFF,
-        0x1FFFFFFFFF,       0x3FFFFFFFFF,       0x7FFFFFFFFF,       0xFFFFFFFFFF,
-        0x1FFFFFFFFFF,      0x3FFFFFFFFFF,      0x7FFFFFFFFFF,      0xFFFFFFFFFFF,
-        0x1FFFFFFFFFFF,     0x3FFFFFFFFFFF,     0x7FFFFFFFFFFF,     0xFFFFFFFFFFFF,
-        0x1FFFFFFFFFFFF,    0x3FFFFFFFFFFFF,    0x7FFFFFFFFFFFF,    0xFFFFFFFFFFFFF,
-        0x1FFFFFFFFFFFFF,   0x3FFFFFFFFFFFFF,   0x7FFFFFFFFFFFFF,   0xFFFFFFFFFFFFFF,
-        0x1FFFFFFFFFFFFFF,  0x3FFFFFFFFFFFFFF,  0x7FFFFFFFFFFFFFF,  0xFFFFFFFFFFFFFFF,
-        0x1FFFFFFFFFFFFFFF, 0x3FFFFFFFFFFFFFFF, 0x7FFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF,
-
-};
 
 /* Linear probing max distance */
 #define MAX_PROBES 10
@@ -116,6 +129,8 @@ ftable* resize(ftable* ft) {
     nt->size = tableSizes[nt->lvl];;
     nt->count = 0;
 
+    // printf("%f Occupied, resizing from %lu to %lu.\n", (((float) ft->count) / ((float) ft->size)), ft->size, nt->size);
+
     nt->buckets = malloc(sizeof(ftbucket) * nt->size);
 
     memset(nt->buckets, 0, sizeof(ftbucket) * nt->size);
@@ -134,6 +149,9 @@ ftable* resize(ftable* ft) {
     return nt;
 }
 
+uint64_t probelen = 0;
+uint64_t probecount = 0;
+
 ftable* insert(ftable* ft, uin key, uin val) {
     if (((float) ft->count + 1) / ((float) ft->size) > MAX_LOAD) {
         ft = resize(ft);
@@ -143,15 +161,23 @@ ftable* insert(ftable* ft, uin key, uin val) {
     /* Prime modulus */
     uin index = key % ft->size;
     uint8_t dist = 0;
+
+    uin tkey;
+    uin tval;
+    uint8_t tdist;
+
+    uin nind;
+
     while (1) {
         /* If more than MAX_PROBES away from ideal location
          * resize table and attempt to insert again (goto binsert) */
         if (dist > MAX_PROBES) {
             ft = resize(ft);
+            // printf("Went over MAX_PROBES\n");
             goto binsert;
         }
         // uin nind = (index + dist) % ft->size;
-        uin nind = (index + dist) & mask[ft->lvl];
+        nind = (index + dist) & mask[ft->lvl];
         /**
          * Above line can be replaced with
          * uin nind = (index + dist) & mask[ft->lvl];
@@ -161,15 +187,16 @@ ftable* insert(ftable* ft, uin key, uin val) {
             if (ft->buckets[nind].dist < dist) {
                 /* Robin hood hashing: If a 'richer' node is found,
                  * steal from it: swap */
-                uin tkey = ft->buckets[nind].key;
-                uin tval = ft->buckets[nind].val;
-                uint8_t tdist = ft->buckets[nind].dist;
+                tkey = ft->buckets[nind].key;
+                tval = ft->buckets[nind].val;
+                tdist = ft->buckets[nind].dist;
                 ft->buckets[nind].key = key;
                 ft->buckets[nind].val = val;
                 ft->buckets[nind].dist = dist;
                 key = tkey;
                 val = tval;
                 dist = tdist;
+                index = key % ft->size;
             }
         }
         if (ft->buckets[nind].data == EMPTY || ft->buckets[index + dist].data == TMBSTN) {
@@ -179,6 +206,8 @@ ftable* insert(ftable* ft, uin key, uin val) {
             ft->buckets[nind].val = val;
             ft->buckets[nind].dist = dist;
             ft->count++;
+            //probelen += dist;
+            //probecount++;
             return ft;
         }
 
