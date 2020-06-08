@@ -8,7 +8,7 @@ This uses a prime modulus, at some point I might attempt using fibonacci hashing
 If you can recommend or implement any optimizations for it, please feel free.
 
 
-Stats from last time I ran it:
+## Stats from last time I ran it:
 
 This is timing data from an insert of 8 million keys.
 
