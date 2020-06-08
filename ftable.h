@@ -171,6 +171,7 @@ ftable* insert(ftable* ft, uin key, uin val) {
     uin tval;
     uint8_t tdist;
 
+    ftbucket* tem;
     uin nind;
 
     while (1) {
@@ -183,88 +184,115 @@ ftable* insert(ftable* ft, uin key, uin val) {
         }
         // uin nind = (index + dist) % ft->size;
         nind = (index + dist) & mask[ft->lvl];
-        if (ft->buckets[nind].data == OCCPD) {
-            if (ft->buckets[nind].dist < dist) {
+        tem = ft->buckets + nind;
+        if (tem->data == OCCPD) {
+            if (tem->dist < dist) {
                 /* Robin hood hashing: If a 'richer' node is found,
                  * steal from it: swap */
-                tkey = ft->buckets[nind].key;
-                tval = ft->buckets[nind].val;
-                tdist = ft->buckets[nind].dist;
-                ft->buckets[nind].key = key;
-                ft->buckets[nind].val = val;
-                ft->buckets[nind].dist = dist;
+                tkey = tem->key;
+                tval = tem->val;
+                tdist = tem->dist;
+                tem->key = key;
+                tem->val = val;
+                tem->dist = dist;
                 key = tkey;
                 val = tval;
                 dist = tdist;
                 index = key % ft->size;
             }
         }
-        if (ft->buckets[nind].data == EMPTY || ft->buckets[index + dist].data == TMBSTN) {
+        if (tem->data == EMPTY || tem->data == TMBSTN) {
             /* Occupy any empty or tombstone buckets */
-            ft->buckets[nind].data = OCCPD;
-            ft->buckets[nind].key = key;
-            ft->buckets[nind].val = val;
-            ft->buckets[nind].dist = dist;
+            tem->data = OCCPD;
+            tem->key = key;
+            tem->val = val;
+            tem->dist = dist;
             ft->count++;
             //probelen += dist;
             //probecount++;
             return ft;
         }
 
-        dist++;
+        ++dist;
     }
 }
 
 void delete(ftable* ft, uin key) {
     uin index = key % ft->size;
     uint8_t dist = 0;
+    ftbucket* tem;
+    uin nind;
     while (1) {
         if (dist > MAX_PROBES) {
             /* Object not present in table. Return. */
             return;
         }
         // uin nind = (index + dist) % ft->size;
-        uin nind = (index + dist) & mask[ft->lvl];
-        if (ft->buckets[nind].data == OCCPD) {
-            if (ft->buckets[nind].key == key) {
+        nind = (index + dist) & mask[ft->lvl];
+        tem = ft->buckets + nind;
+        if (tem->data == OCCPD) {
+            if (tem->key == key) {
                 /* Set bucket data to tombstone and
                  * clear key and value */
-                ft->buckets[nind].data = TMBSTN;
-                ft->buckets[nind].key = 0;
-                ft->buckets[nind].val = 0;
+                tem->data = TMBSTN;
+                tem->key = 0;
+                tem->val = 0;
                 ft->count--;
                 return;
             }
         }
 
-        dist++;
+        ++dist;
     }
 }
 
 uin get(ftable* ft, uin key) {
     uin index = key % ft->size;
     uint8_t dist = 0;
+    ftbucket* currBkt;
+    uin nind;
+    do {
+        nind = (index + dist) & mask[ft->lvl];
+        currBkt = ft->buckets + nind;
+        if (currBkt->data == OCCPD) {
+            if (currBkt->key == key) {
+                return currBkt->val;
+            }
+        } else if (currBkt->data == EMPTY) {
+            // * If empty, return early. Further elements
+            // * would have been bridged by a tombstone or a
+            // * occupied bucket.
+            return -1;
+        }
+    } while (dist++ < MAX_PROBES);
+
+    perror("Went over max probes!");
+    return -1;
+
+    /*
     while (1) {
         if (dist > MAX_PROBES) {
-            /* Object not present in table. Return. */
+            // * Object not present in table. Return.
             perror("Went over max probes!");
             return -1;
         }
         // uin nind = (index + dist) % ft->size;
-        uin nind = (index + dist) & mask[ft->lvl];
-        if (ft->buckets[nind].data == OCCPD) {
-            if (ft->buckets[nind].key == key) {
-                return ft->buckets[nind].val;
+        nind = (index + dist) & mask[ft->lvl];
+        currBkt = ft->buckets + nind;
+        if (currBkt->data == OCCPD) {
+            if (currBkt->key == key) {
+                return currBkt->val;
             }
-        } else if (ft->buckets[nind].data == EMPTY) {
-            /* If empty, return early. Further elements
-             * would have been bridged by a tombstone or a
-             * occupied bucket. */
+        } else if (currBkt->data == EMPTY) {
+            // * If empty, return early. Further elements
+             // * would have been bridged by a tombstone or a
+             // * occupied bucket.
             return -1;
         }
 
-        dist++;
+        ++dist;
     }
+    */
 }
 
 void free_table(ftable* ft) {
