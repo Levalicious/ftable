@@ -68,7 +68,15 @@ struct sftbl {
     uint8_t lvl;
 };
 
+ftable* alloc_ftable() {
+    ftable* out = malloc(sizeof(ftable));
+    memset(out, 0, sizeof(ftable));
+    return out;
+}
+
 ftable* insert(ftable* ft, uin key, uin val);
+
+void free_table(ftable* ft);
 
 ftable* resize(ftable* ft) {
     ftable* nt = malloc(sizeof(ftable));
@@ -87,7 +95,7 @@ ftable* resize(ftable* ft) {
         }
     }
 
-    free(ft);
+    free_table(ft);
 
     return nt;
 }
@@ -172,6 +180,11 @@ uin get(ftable* ft, uin key) {
 
         dist++;
     }
+}
+
+void free_table(ftable* ft) {
+    free(ft->buckets);
+    free(ft);
 }
 
 #endif
