@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <sys/time.h>
 #include <immintrin.h>
+#include <stdint.h>
 #include "ftable.h"
 
 //#include "consistent.h"
@@ -19,8 +20,11 @@ uint64_t mtime() {
 int main() {
     ftable* ft = alloc_ftable();
 
+    ft->lvl = 21;
+    ft = resize(ft);
+
     uint64_t start = mtime();
-    for (uint64_t i = COUNT; i > 0; i--) {
+    for (int i = COUNT; i > 0; i--) {
         ft = insert(ft, i, i);
     }
     uint64_t end = mtime();
@@ -30,10 +34,13 @@ int main() {
     printf("%f ns per insert.\n", (((float) (end - start) * 1000) / ((float) COUNT)));
 
 
-    uint64_t t;
+    int t;
     start = mtime();
-    for (uint64_t i = COUNT; i > 0; i--) {
+    for (int i = COUNT; i > 0; i--) {
         t = get(ft, i);
+        if (t != i) {
+            printf("Incorrect for key '%d'\n", i);
+        }
     }
     end = mtime();
 

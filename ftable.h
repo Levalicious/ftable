@@ -7,6 +7,8 @@
 
 #define MAX_LOAD 0.75
 
+#define __x86
+
 /* Set uin as uint32_t or uint64_t depending on system */
 #ifdef __x86
 typedef uint32_t uin;
@@ -82,6 +84,9 @@ const uin tableSizes[] = {
         18446744073709551557};
 
 #endif
+
+#undef __x86
+
 
 /* Linear probing max distance */
 #define MAX_PROBES 10
