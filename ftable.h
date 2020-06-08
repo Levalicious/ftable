@@ -5,11 +5,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_LOAD 0.5
+#define MAX_LOAD 0.7
 
+/* Set uin as uint32_t or uint64_t depending on system */
 #ifdef __x86
 typedef uint32_t uin;
 
+/* Table of prime number sizes, each approx double the prev, that fits
+ * into a uint32_t */
 const uin tableSizes[] = {
         5, 11, 23, 47, 97, 197, 397, 797, 1597,
         3203, 6421, 12853, 25717, 51437, 102877,
@@ -21,6 +24,8 @@ const uin tableSizes[] = {
 #elif __x86_64
 typedef uint64_t uin;
 
+/* Table of prime number sizes, each approx double the prev, that fits
+ * into a uint64_t */
 const uin tableSizes[] = {
         5, 11, 23, 47, 97, 197, 397, 797, 1597,
         3203, 6421, 12853, 25717, 51437, 102877,
@@ -44,14 +49,39 @@ const uin tableSizes[] = {
 
 #endif
 
+/* Table of bitmasks to use */
+const uin mask[] = {
+        0x7,                0xF,
+        0x1F,               0x3F,               0x7F,               0xFF,
+        0x1FF,              0x3FF,              0x7FF,              0xFFF,
+        0x1FFF,             0x3FFF,             0x7FFF,             0xFFFF,
+        0x1FFFF,            0x3FFFF,            0x7FFFF,            0xFFFFF,
+        0x1FFFFF,           0x3FFFFF,           0x7FFFFF,           0xFFFFFF,
+        0x1FFFFFF,          0x3FFFFFF,          0x7FFFFFF,          0xFFFFFFF,
+        0x1FFFFFFF,         0x3FFFFFFF,         0x7FFFFFFF,         0xFFFFFFFF,
+        0x1FFFFFFFF,        0x3FFFFFFFF,        0x7FFFFFFFF,        0xFFFFFFFFF,
+        0x1FFFFFFFFF,       0x3FFFFFFFFF,       0x7FFFFFFFFF,       0xFFFFFFFFFF,
+        0x1FFFFFFFFFF,      0x3FFFFFFFFFF,      0x7FFFFFFFFFF,      0xFFFFFFFFFFF,
+        0x1FFFFFFFFFFF,     0x3FFFFFFFFFFF,     0x7FFFFFFFFFFF,     0xFFFFFFFFFFFF,
+        0x1FFFFFFFFFFFF,    0x3FFFFFFFFFFFF,    0x7FFFFFFFFFFFF,    0xFFFFFFFFFFFFF,
+        0x1FFFFFFFFFFFFF,   0x3FFFFFFFFFFFFF,   0x7FFFFFFFFFFFFF,   0xFFFFFFFFFFFFFF,
+        0x1FFFFFFFFFFFFFF,  0x3FFFFFFFFFFFFFF,  0x7FFFFFFFFFFFFFF,  0xFFFFFFFFFFFFFFF,
+        0x1FFFFFFFFFFFFFFF, 0x3FFFFFFFFFFFFFFF, 0x7FFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF,
+
+};
+
+/* Linear probing max distance */
 #define MAX_PROBES 10
 
+/* Bucket States: Empty, Occupied, Tombstone */
 #define EMPTY 0
 #define OCCPD 1
 #define TMBSTN 2
 
 typedef struct sftbl_bckt ftbucket;
 
+/* Hash table bucket: Key, value, distance from 'ideal' position,
+ * and data field indicating the bucket state */
 struct sftbl_bckt {
     uin key;
     uin val;
@@ -81,6 +111,7 @@ void free_table(ftable* ft);
 ftable* resize(ftable* ft) {
     ftable* nt = malloc(sizeof(ftable));
 
+    /* Increase the index in the prime table used for the size */
     nt->lvl = ft->lvl + 1;
     nt->size = tableSizes[nt->lvl];;
     nt->count = 0;
@@ -89,11 +120,14 @@ ftable* resize(ftable* ft) {
 
     memset(nt->buckets, 0, sizeof(ftbucket) * nt->size);
 
+    /* Iterate through every valid entry and insert into new table */
     for (uin i = 0; i < ft->size; i++) {
         if (ft->buckets[i].data == OCCPD) {
             nt = insert(nt, ft->buckets[i].key, ft->buckets[i].val);
         }
     }
+
+    /* Free old table and return new one */
 
     free_table(ft);
 
@@ -106,16 +140,27 @@ ftable* insert(ftable* ft, uin key, uin val) {
     }
 
     binsert:;
+    /* Prime modulus */
     uin index = key % ft->size;
     uint8_t dist = 0;
     while (1) {
+        /* If more than MAX_PROBES away from ideal location
+         * resize table and attempt to insert again (goto binsert) */
         if (dist > MAX_PROBES) {
             ft = resize(ft);
             goto binsert;
         }
-        uin nind = (index + dist) % ft->size;
+        // uin nind = (index + dist) % ft->size;
+        uin nind = (index + dist) & mask[ft->lvl];
+        /**
+         * Above line can be replaced with
+         * uin nind = (index + dist) & mask[ft->lvl];
+         * for worse memory usage but faster perf
+         **/
         if (ft->buckets[nind].data == OCCPD) {
             if (ft->buckets[nind].dist < dist) {
+                /* Robin hood hashing: If a 'richer' node is found,
+                 * steal from it: swap */
                 uin tkey = ft->buckets[nind].key;
                 uin tval = ft->buckets[nind].val;
                 uint8_t tdist = ft->buckets[nind].dist;
@@ -128,6 +173,7 @@ ftable* insert(ftable* ft, uin key, uin val) {
             }
         }
         if (ft->buckets[nind].data == EMPTY || ft->buckets[index + dist].data == TMBSTN) {
+            /* Occupy any empty or tombstone buckets */
             ft->buckets[nind].data = OCCPD;
             ft->buckets[nind].key = key;
             ft->buckets[nind].val = val;
@@ -148,9 +194,17 @@ void delete(ftable* ft, uin key) {
             /* Object not present in table. Return. */
             return;
         }
-        uin nind = (index + dist) % ft->size;
+        // uin nind = (index + dist) % ft->size;
+        uin nind = (index + dist) & mask[ft->lvl];
+        /**
+         * Above line can be replaced with
+         * uin nind = (index + dist) & mask[ft->lvl];
+         * for worse memory usage but faster perf
+         **/
         if (ft->buckets[nind].data == OCCPD) {
             if (ft->buckets[nind].key == key) {
+                /* Set bucket data to tombstone and
+                 * clear key and value */
                 ft->buckets[nind].data = TMBSTN;
                 ft->buckets[nind].key = 0;
                 ft->buckets[nind].val = 0;
@@ -169,13 +223,25 @@ uin get(ftable* ft, uin key) {
     while (1) {
         if (dist > MAX_PROBES) {
             /* Object not present in table. Return. */
+            perror("Went over max probes!");
             return -1;
         }
-        uin nind = (index + dist) % ft->size;
+        // uin nind = (index + dist) % ft->size;
+        uin nind = (index + dist) & mask[ft->lvl];
+        /**
+         * Above line can be replaced with
+         * uin nind = (index + dist) & mask[ft->lvl];
+         * for worse memory usage but faster perf
+         **/
         if (ft->buckets[nind].data == OCCPD) {
             if (ft->buckets[nind].key == key) {
                 return ft->buckets[nind].val;
             }
+        } else if (ft->buckets[nind].data == EMPTY) {
+            /* If empty, return early. Further elements
+             * would have been bridged by a tombstone or a
+             * occupied bucket. */
+            return -1;
         }
 
         dist++;
