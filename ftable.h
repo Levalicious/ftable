@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_LOAD 0.7
+#define MAX_LOAD 0.75
 
 /* Set uin as uint32_t or uint64_t depending on system */
 #ifdef __x86
@@ -178,11 +178,6 @@ ftable* insert(ftable* ft, uin key, uin val) {
         }
         // uin nind = (index + dist) % ft->size;
         nind = (index + dist) & mask[ft->lvl];
-        /**
-         * Above line can be replaced with
-         * uin nind = (index + dist) & mask[ft->lvl];
-         * for worse memory usage but faster perf
-         **/
         if (ft->buckets[nind].data == OCCPD) {
             if (ft->buckets[nind].dist < dist) {
                 /* Robin hood hashing: If a 'richer' node is found,
@@ -225,11 +220,6 @@ void delete(ftable* ft, uin key) {
         }
         // uin nind = (index + dist) % ft->size;
         uin nind = (index + dist) & mask[ft->lvl];
-        /**
-         * Above line can be replaced with
-         * uin nind = (index + dist) & mask[ft->lvl];
-         * for worse memory usage but faster perf
-         **/
         if (ft->buckets[nind].data == OCCPD) {
             if (ft->buckets[nind].key == key) {
                 /* Set bucket data to tombstone and
@@ -257,11 +247,6 @@ uin get(ftable* ft, uin key) {
         }
         // uin nind = (index + dist) % ft->size;
         uin nind = (index + dist) & mask[ft->lvl];
-        /**
-         * Above line can be replaced with
-         * uin nind = (index + dist) & mask[ft->lvl];
-         * for worse memory usage but faster perf
-         **/
         if (ft->buckets[nind].data == OCCPD) {
             if (ft->buckets[nind].key == key) {
                 return ft->buckets[nind].val;
