@@ -23,3 +23,7 @@ Reads: 133333.328125 per ms, 60 ms for 8000000 keys
 7.508125 ns per read.
 
 Memory use: 316079480 bytes.
+
+
+UPDATE:
+Since then I've managed to get the inserts down to about 12 ns
